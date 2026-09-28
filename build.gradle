@@ -1,0 +1,231 @@
+plugins {
+    id 'fabric-loom' version '1.9-SNAPSHOT'
+    id 'maven-publish'
+}
+
+archivesBaseName = project.archives_base_name
+version = project.mod_version
+group = project.maven_group
+
+// ProGuard 配置
+configurations {
+    proguard
+}
+
+dependencies {
+    proguard 'com.guardsquare:proguard-gradle:7.4.2'
+}
+
+loom {
+    accessWidenerPath = file("src/main/resources/loppu.accesswidener")
+}
+
+repositories {
+    maven {
+        name = 'TencentMaven'
+        url = 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/'
+    }
+    flatDir {
+        dirs 'lib'
+    }
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    modImplementation name: 'baritone-api-fabric-1.21.1-1.11.2'
+    modImplementation name: 'nether-pathfinder-1.4.1'
+    modImplementation name: 'IAS-Fabric-1.21.1-9.0.2'
+    modImplementation files('lib/satin-2.0.0.jar')
+    modImplementation name: 'sodium-fabric-0.6.13+mc1.21.1'
+    implementation 'org.apiguardian:apiguardian-api:1.1.2'
+
+    // Nakano NanoVG rendering pipeline
+    modApi include('org.lwjgl:lwjgl-nanovg:3.3.3')
+    modRuntimeOnly include('org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows')
+    modRuntimeOnly include('org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows-arm64')
+    modRuntimeOnly include('org.lwjgl:lwjgl-nanovg:3.3.3:natives-linux')
+    modRuntimeOnly include('org.lwjgl:lwjgl-nanovg:3.3.3:natives-linux-arm64')
+    modRuntimeOnly include('org.lwjgl:lwjgl-nanovg:3.3.3:natives-macos')
+    modRuntimeOnly include('org.lwjgl:lwjgl-nanovg:3.3.3:natives-macos-arm64')
+
+    include name: 'satin-2.0.0'
+    include name: 'IAS-Fabric-1.21.1-9.0.2'
+
+    include name: 'nether-pathfinder-1.4.1'
+    include name: 'sodium-fabric-0.6.13+mc1.21.1'
+}
+
+processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    inputs.property "version", project.version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+
+    // 每次构建时将项目根目录的 UI.png 拷贝为 auth_bg.png，
+    // 确保 PC 端验证窗口背景始终使用最新的 UI.png
+    def uiPng = rootProject.file('UI.png')
+    def authBgPng = file('src/main/resources/assets/loppu/textures/gui/auth_bg.png')
+    if (uiPng.exists()) {
+        authBgPng.parentFile.mkdirs()
+        java.nio.file.Files.copy(uiPng.toPath(), authBgPng.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        logger.lifecycle("[build.gradle] UI.png -> auth_bg.png copied (${uiPng.length()} bytes)")
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+    options.compilerArgs << "-Xmaxerrs" << "2048"
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+
+    repositories {
+    }
+}
+
+// 字符串混淆配置
+task stringObfuscate {
+    group = 'build'
+    description = '字符串混淆'
+    
+    doLast {
+        def inputDir = file('src/main/java')
+        def outputDir = file('build/obfuscated-src')
+        
+        println "开始字符串混淆..."
+        println "输入目录: $inputDir"
+        println "输出目录: $outputDir"
+        
+        // 编译并运行字符串混淆器
+        ant.javac(
+            srcdir: 'src/main/java',
+            destdir: 'build/classes/java/main',
+            includeantruntime: false,
+            classpath: configurations.compileClasspath.asPath
+        )
+        
+        javaexec {
+            main = 'dev.luminous.tools.StringObfuscator'
+            classpath = files('build/classes/java/main')
+            classpath += configurations.runtimeClasspath
+            args inputDir.absolutePath, outputDir.absolutePath
+        }
+        
+        println "字符串混淆完成！"
+    }
+}
+
+// ProGuard 混淆配置
+task proguardRelease(type: JavaExec, dependsOn: ['remapJar']) {
+    group = 'build'
+    description = '混淆输出 JAR'
+    
+    main = 'proguard.ProGuard'
+    classpath = configurations.proguard
+    
+    def inputJar = layout.buildDirectory.file('libs/' + archivesBaseName + '-' + version + '.jar').get().asFile
+    def outputJar = layout.buildDirectory.file('libs/' + archivesBaseName + '-' + version + '-obfuscated.jar').get().asFile
+    
+    args '@proguard-rules.pro'
+    args '-injars', inputJar.absolutePath
+    args '-outjars', outputJar.absolutePath
+    
+    doFirst {
+        // 添加Java运行时库（Java 21+使用jrt文件系统）
+        def javaHome = System.getProperty('java.home')
+        def jrtFsJar = new File(javaHome, 'lib/jrt-fs.jar')
+        if (jrtFsJar.exists()) {
+            args '-libraryjars', jrtFsJar.absolutePath
+        }
+        
+        // 添加项目运行时依赖
+        args '-libraryjars', project.configurations.runtimeClasspath.asPath
+        
+        println "正在混淆代码..."
+        println "输入: $inputJar"
+        println "输出: $outputJar"
+        if (jrtFsJar.exists()) {
+            println "Java运行时库: $jrtFsJar"
+        }
+    }
+    
+    doLast {
+        println "混淆完成！"
+        println "输出文件: $outputJar"
+        println "混淆映射文件: proguard_mapping.txt"
+    }
+}
+
+// ProGuard ZKM级别混淆配置
+task proguardZKMRelease(type: JavaExec, dependsOn: ['remapJar']) {
+    group = 'build'
+    description = 'ZKM级别高强度混淆输出 JAR'
+
+    main = 'proguard.ProGuard'
+    classpath = configurations.proguard
+
+    def inputJar = layout.buildDirectory.file('libs/' + archivesBaseName + '-' + version + '.jar').get().asFile
+    def outputJar = layout.buildDirectory.file('libs/' + archivesBaseName + '-' + version + '-zkm-obfuscated.jar').get().asFile
+
+    args '@proguard-rules-zkm.pro'
+    args '-injars', inputJar.absolutePath
+    args '-outjars', outputJar.absolutePath
+
+    doFirst {
+        // 添加Java运行时库（Java 21+使用jrt文件系统）
+        def javaHome = System.getProperty('java.home')
+        def jrtFsJar = new File(javaHome, 'lib/jrt-fs.jar')
+        if (jrtFsJar.exists()) {
+            args '-libraryjars', jrtFsJar.absolutePath
+        }
+
+        // 添加项目运行时依赖
+        args '-libraryjars', project.configurations.runtimeClasspath.asPath
+
+        println "正在进行ZKM级别高强度混淆..."
+        println "输入: $inputJar"
+        println "输出: $outputJar"
+        if (jrtFsJar.exists()) {
+            println "Java运行时库: $jrtFsJar"
+        }
+    }
+
+    doLast {
+        println "ZKM级别混淆完成！"
+        println "输出文件: $outputJar"
+        println "混淆映射文件: proguard_mapping_zkm.txt"
+        println "性能目标: >=92% 原始性能"
+    }
+}
+
+// 创建一个构建任务，先构建再混淆
+tasks.register('buildObfuscated') {
+    group = 'build'
+    description = '构建并混淆输出 JAR'
+
+    dependsOn 'proguardRelease'
+
+    doLast {
+        println "构建和混淆全部完成！"
+    }
+}
+
+

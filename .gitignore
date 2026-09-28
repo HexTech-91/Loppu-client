@@ -1,0 +1,66 @@
+# ============================================================
+# Loppu-client .gitignore
+# ============================================================
+
+### Gradle ###
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+gradle-app.setting
+.gradletasknamecache
+
+### IDE ###
+.idea/
+*.iml
+*.ipr
+*.iws
+.settings/
+.classpath
+.project
+.vscode/
+nbproject/
+
+### Eclipse 编译输出（本项目的 bin/ 目录） ###
+bin/
+
+### Minecraft 运行目录 ###
+run/
+runs/
+logs/
+log/
+
+### Java ###
+*.class
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+*.hprof
+*.jfr
+
+### 构建 / 混淆产物 ###
+*-obfuscated.jar
+*-zkm-obfuscated.jar
+proguard_mapping*.txt
+build_log.txt
+mappings.tiny
+*.bak
+*.tmp
+*.orig
+*.rej
+
+### 本地配置（可能含个人账号/密码，切勿提交） ###
+run/config/
+config/
+*.local
+
+### OS ###
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+### 本地备份目录 ###
+src_backup/
+skid/

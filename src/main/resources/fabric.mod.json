@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "loppu",
+  "version": "${version}",
+  "name": "Loppu-client",
+  "description": "Based on NNY Client, modified by Mr_Nagisa",
+  "authors": [
+    "Mr_Nagisa",
+  ],
+  "icon": "assets/loppu/icon.png",
+  "accessWidener": "loppu.accesswidener",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "dev.luminous.Alien"
+    ]
+  },
+  "mixins": [
+    "loppu.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": "1.21.1",
+    "java": ">=17"
+  },
+  "suggests": {
+    "another-mod": "*"
+  }
+}
