@@ -5,7 +5,7 @@
   "name": "Loppu-client",
   "description": "Based on NNY Client, modified by Mr_Nagisa",
   "authors": [
-    "Mr_Nagisa",
+    "Mr_Nagisa"
   ],
   "icon": "assets/loppu/icon.png",
   "accessWidener": "loppu.accesswidener",
